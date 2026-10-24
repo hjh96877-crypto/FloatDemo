@@ -3,40 +3,58 @@ package com.example.floatdemo
 import android.app.Activity
 import android.app.AlertDialog
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.provider.Settings
 import android.widget.Toast
+import rikka.shizuku.Shizuku
 
 class MainActivity : Activity() {
     private val ui = Handler(Looper.getMainLooper())
-    private var rootOk = false
+    private var ready = false
+
+    private val permListener = Shizuku.OnRequestPermissionResultListener { _, result ->
+        if (result == PackageManager.PERMISSION_GRANTED) {
+            Thread { AccessUtil.check(); ui.post { onAccessOk() } }.start()
+        } else {
+            denyAndExit("你拒绝了 Shizuku 授权,应用无法打开。")
+        }
+    }
 
     override fun onCreate(b: Bundle?) {
         super.onCreate(b)
-        Toast.makeText(this, "正在检测 root 权限…", Toast.LENGTH_SHORT).show()
+        Shizuku.addRequestPermissionResultListener(permListener)
+        Toast.makeText(this, "正在检测 root / Shizuku…", Toast.LENGTH_SHORT).show()
         Thread {
-            val ok = RootUtil.hasRoot()
-            ui.post { if (ok) onRootOk() else denyAndExit() }
+            val s = AccessUtil.check()
+            ui.post {
+                when (s) {
+                    AccessUtil.State.ROOT, AccessUtil.State.SHIZUKU -> onAccessOk()
+                    AccessUtil.State.NEED_PERMISSION -> Shizuku.requestPermission(100)
+                    AccessUtil.State.NONE -> denyAndExit(
+                        "未检测到 root 权限,也没有可用的 Shizuku 授权。\n" +
+                        "请先授予 root,或启动 Shizuku 并允许本应用。")
+                }
+            }
         }.start()
     }
 
-    private fun denyAndExit() {
+    private fun denyAndExit(msg: String) {
         AlertDialog.Builder(this)
             .setTitle("无法使用")
-            .setMessage("未检测到 root 权限,应用无法打开。请在提权管理器中授权后重试。")
+            .setMessage(msg)
             .setCancelable(false)
             .setPositiveButton("退出") { _, _ -> finishAndRemoveTask() }
             .show()
     }
 
-    private fun onRootOk() {
-        rootOk = true
+    private fun onAccessOk() {
+        ready = true
         Thread {
-            // 用 root 静默授予悬浮窗权限
-            RootUtil.exec("appops set $packageName SYSTEM_ALERT_WINDOW allow")
+            AccessUtil.exec("appops set $packageName SYSTEM_ALERT_WINDOW allow")
             ui.post {
                 if (Settings.canDrawOverlays(this)) {
                     startFloat()
@@ -50,11 +68,16 @@ class MainActivity : Activity() {
 
     override fun onResume() {
         super.onResume()
-        if (rootOk && Settings.canDrawOverlays(this)) startFloat()
+        if (ready && Settings.canDrawOverlays(this)) startFloat()
     }
 
     private fun startFloat() {
         startForegroundService(Intent(this, FloatService::class.java))
         finish()
+    }
+
+    override fun onDestroy() {
+        Shizuku.removeRequestPermissionResultListener(permListener)
+        super.onDestroy()
     }
 }

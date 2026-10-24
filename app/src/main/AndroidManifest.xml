@@ -15,7 +15,14 @@
             </intent-filter>
         </activity>
 
-        <!-- exported=true 才能被 sh 的 am 命令调用 -->
         <service android:name=".FloatService" android:exported="true"/>
+
+        <provider
+            android:name="rikka.shizuku.ShizukuProvider"
+            android:authorities="${applicationId}.shizuku"
+            android:multiprocess="false"
+            android:enabled="true"
+            android:exported="true"
+            android:permission="android.permission.INTERACT_ACROSS_USERS_FULL"/>
     </application>
 </manifest>

@@ -28,10 +28,10 @@ class FloatService : Service() {
         }
 
         Thread {
-            val ok = RootUtil.hasRoot()
+            val ok = AccessUtil.hasAccess()
             ui.post {
                 if (!ok) {
-                    Toast.makeText(this, "未检测到 root 权限,无法使用", Toast.LENGTH_LONG).show()
+                    Toast.makeText(this, "未检测到 root 或 Shizuku 授权,无法使用", Toast.LENGTH_LONG).show()
                     stopSelf()
                 } else {
                     showFloat(color)
